@@ -18,6 +18,7 @@
  */
 
 #define pr_fmt(fmt)	KBUILD_MODNAME ":%s: " fmt, __func__
+#undef USER_INTERRUPT_DISABLE
 
 #include <linux/kernel.h>
 #include "qdma_descq.h"
@@ -518,7 +519,7 @@ static int intr_vector_setup(struct xlnx_dma_dev *xdev, int idx,
 				  xdev->dev_intr_info_list[idx].msix_name,
 				  xdev);
 
-	pr_debug("%s requesting IRQ vector #%d: vec %d, type %d, %s.\n",
+	pr_info("%s requesting IRQ vector #%d: vec %d, type %d, %s.\n",
 			xdev->conf.name, idx, xdev->msix[idx].vector,
 			type, xdev->dev_intr_info_list[idx].msix_name);
 
@@ -554,6 +555,12 @@ int intr_setup(struct xlnx_dma_dev *xdev)
 	int num_vecs_req = 0;
 #ifndef USER_INTERRUPT_DISABLE
 	int intr_count = 0;
+#endif
+
+#ifdef USER_INTERRUPT_DISABLE
+	pr_info("USER_INTERRUPT_DISABLE defined.\n");
+#else
+	pr_info("USER_INTERRUPT_DISABLE not defined.\n");
 #endif
 
 	if ((xdev->conf.qdma_drv_mode == POLL_MODE) ||

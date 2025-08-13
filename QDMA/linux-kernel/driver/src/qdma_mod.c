@@ -82,6 +82,22 @@ static void xpdev_unmap_bar(struct xlnx_pci_dev *xpdev, void __iomem **regs);
 void qdma_flr_resource_free(unsigned long dev_hndl);
 #endif
 
+#ifndef __XRT__
+static void my_user_isr(unsigned long dev_hndl, unsigned long uld)
+{
+	    static unsigned long cnt;
+		cnt++;
+		pr_info("USER IRQ fired! dev=%p cnt=%lu\n", (void *)dev_hndl, cnt);
+}
+#else
+static void my_user_isr(unsigned long dev_hndl, int irq_index, unsigned long uld)
+{
+	    static unsigned long cnt;
+		cnt++;
+	    pr_info("USER IRQ fired! dev=%p irq_index=%d cnt=%lu\n", (void *)dev_hndl, irq_index, cnt);
+}
+#endif
+
 /*****************************************************************************/
 /**
  * funcname() -  handler to show the intr_rngsz configuration value
@@ -90,7 +106,7 @@ void qdma_flr_resource_free(unsigned long dev_hndl);
  * @attr:   intr_rngsz configuration value
  * @buf :   buffer to hold the configured value
  *
- * Handler function to show the intr_rngsz
+ 1* Handler function to show the intr_rngsz
  *
  * @note    none
  *
@@ -1443,7 +1459,7 @@ int qdma_device_read_user_register(struct xlnx_pci_dev *xpdev,
 		return rv;
 
 	*value = readl(xpdev->user_bar_regs + reg_addr);
-
+	printk(KERN_INFO "qdma_driver: read %u\n", *value);
 	/* unmap the AXI Master Lite bar after accessing it */
 	xpdev_unmap_bar(xpdev, &xpdev->user_bar_regs);
 
@@ -1474,7 +1490,7 @@ int qdma_device_write_user_register(struct xlnx_pci_dev *xpdev,
 
 
 	writel(value, xpdev->user_bar_regs + reg_addr);
-
+	printk(KERN_INFO "qdma_driver: write %u\n", value);
 	/* unmap the AXI Master Lite bar after accessing it */
 	xpdev_unmap_bar(xpdev, &xpdev->user_bar_regs);
 
@@ -1587,6 +1603,10 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	conf.qsets_base = -1;
 	conf.msix_qvec_max = 32;
 	conf.user_msix_qvec_max = 1;
+
+	// Set user interrupt handler
+	conf.fp_user_isr_handler = my_user_isr;
+	// ...
 #ifdef __QDMA_VF__
 	conf.fp_flr_free_resource = qdma_flr_resource_free;
 #endif
@@ -1604,6 +1624,26 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		rv = -EINVAL;
 		goto close_device;
 	}
+	// 1. Enable PCIe device
+	rv = pcim_enable_device(pdev);
+	if (rv) {
+		pr_err("pci_enable_device failed, error %d\n", rv);
+		goto close_device;
+	}
+	// 2. Do iomap BAR 2, and save __iomem to xpdev struct.
+	xpdev->bar2_addr = pcim_iomap(pdev, 2, 0);
+	if(!xpdev->bar2_addr) {
+		pr_err("pcim_iomap for BAR 2 failed.\n");
+		rv = -EIO;
+		goto close_device;
+	}
+	else {
+		pr_info("BAR2 mapped at virtual address 0x%p\n", xpdev->bar2_addr);
+	}
+	// 3. Do dmap_alloc
+	// 4. Interrupt handling
+	
+
 
 	xpdev->dev_hndl = dev_hndl;
 	xpdev->idx = conf.bdf;
@@ -1631,6 +1671,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 
 close_device:
+	printk(KERN_INFO "qdma_driver: device closed\n");	
 	qdma_device_close(pdev, dev_hndl);
 
 	if (xpdev)

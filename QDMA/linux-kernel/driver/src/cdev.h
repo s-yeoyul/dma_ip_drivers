@@ -30,11 +30,23 @@
 
 #include "libqdma/libqdma_export.h"
 #include <linux/workqueue.h>
+#include <linux/types.h>
 
 /** QDMA character device class name */
 #define QDMA_CDEV_CLASS_NAME  DRV_MODULE_NAME
 /** QDMA character device max minor number*/
 #define QDMA_MINOR_MAX (2048)
+
+/* For calculator */
+struct calc_args {
+	u32 arg1;
+	u32 arg2;
+};
+
+/* calculator command */
+#define QDMA_CDEV_IOCTL_CALC _IOW('q', 100, struct calc_args)
+
+
 
 /* per pci device control */
 /**

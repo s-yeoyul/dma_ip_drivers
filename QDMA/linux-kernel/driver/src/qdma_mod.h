@@ -93,6 +93,7 @@ struct xlnx_pci_dev {
 	void __iomem *user_bar_regs;	/**< PCIe AXI Master Lite bar */
 	void __iomem *bypass_bar_regs;  /**< PCIe AXI Bridge Master bar*/
 	struct xlnx_qdata *qdata;	/**< queue data*/
+	void __iomem *bar2_addr; /**< PCIe BAR2 addr*/
 };
 
 /*****************************************************************************/

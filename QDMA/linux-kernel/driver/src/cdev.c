@@ -36,6 +36,7 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/version.h>
+#include <linux/delay.h>
 #if KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
 #include <linux/uio.h>
 #endif
@@ -204,13 +205,85 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 			unsigned long arg)
 {
 	struct qdma_cdev *xcdev = (struct qdma_cdev *)file->private_data;
-
+	void __iomem *bar2_addr;
+	// u32 read_arg1;
+	// u32 read_arg2;
+	u32 read_sum;	
 	switch (cmd) {
 	case QDMA_CDEV_IOCTL_NO_MEMCPY:
 		get_user(xcdev->no_memcpy, (unsigned char *)arg);
 		return 0;
-	default:
-		break;
+	case QDMA_CDEV_IOCTL_CALC:
+		// do calculation
+		struct calc_args args;
+		if(copy_from_user(&args, (void __user *)arg, sizeof(args)))
+			return -EFAULT;
+		printk(KERN_INFO "qdma_driver: %d %d\n", args.arg1, args.arg2);
+		/* bar2_addr = xcdev->xcb->xpdev->bar2_addr;
+		printk(KERN_INFO "IOCTL: Using virtual address 0x%p\n", bar2_addr);	
+		if (!bar2_addr) {
+			pr_err("BAR2 not mapped!\n");
+			return -EFAULT;
+		}*/
+		// 1. Memory-map the BAR 2 region on host DRAM
+		bar2_addr = pci_iomap(xcdev->xcb->xpdev->pdev, 2, 100);
+		// 2. Write two arguments
+		iowrite32(args.arg1, bar2_addr + 0x0);
+		iowrite32(args.arg2, bar2_addr + 0x4);
+		printk(KERN_INFO "qdma_driver: write %d %d\n", args.arg1, args.arg2);
+		// read_arg1 = ioread32(bar2_addr + 0x0);
+		// read_arg2 = ioread32(bar2_addr + 0x4);
+		// 3. Read the result of the summation
+		read_sum = ioread32(bar2_addr + 0x8);	
+		printk(KERN_INFO "qdma_driver: read %d\n", read_sum);
+		
+		// 4. DMA transaction
+		printk(KERN_INFO "qdma_driver: wait...\n");
+		msleep(2000);
+
+		{
+			void *v_dma_addr; // virtual address of dma base addr
+			dma_addr_t p_dma_addr; // physical address of dma, retrieved by `dma_alloc_coherent`
+			struct qdma_sw_sg sg = {0}; 
+			struct qdma_request req;
+			int rc;
+
+			v_dma_addr = dma_alloc_coherent(&xcdev->xcb->xpdev->pdev->dev, 4, &p_dma_addr, GFP_KERNEL);
+
+			if(!v_dma_addr) {
+				pr_err("dma_alloc_coherent failed\n");
+				return -ENOMEM;
+			}
+			memset(&req, 0, sizeof(req));
+			
+			// qdma scatter gather request, @libqdma_export.h
+			sg.next = NULL;
+			sg.pg = NULL;
+			sg.offset = 0;
+			sg.len = 4;
+			sg.dma_addr = p_dma_addr;
+			
+			// qdma request for read or write, @libqdma_export.h
+			req.write = 0; // C2H
+			req.sgcnt = 1;
+			req.sgl = &sg;
+			req.dma_mapped = 1;
+			req.udd_len = 0;
+			req.ep_addr = 0x8; // AXI offset: 0x8
+			req.count = 4;
+			req.timeout_ms = 3000;
+			req.fp_done = NULL;
+
+			rc = xcdev->fp_rw(xcdev->xcb->xpdev->dev_hndl, xcdev->c2h_qhndl, &req); // call qdma_request_submit()
+			
+			if (rc < 0) {
+				pr_err("qdma C2H MM failed: %d\n", rc);
+				return rc;
+			}
+
+			pr_info("qdma_driver: *mem = %u (VA=%pK dma=%pad)\n", *(u32 *)v_dma_addr, v_dma_addr, &p_dma_addr);
+		}
+		return 0;
 	}
 	if (xcdev->fp_ioctl_extra)
 		return xcdev->fp_ioctl_extra(xcdev, cmd, arg);
