@@ -45,7 +45,10 @@ struct calc_args {
 
 /* calculator command */
 #define QDMA_CDEV_IOCTL_CALC _IOW('q', 100, struct calc_args)
-
+#define QDMA_CDEV_IOCTL_USER _IOW('q', 101, struct calc_args)
+#define QDMA_CDEV_IOCTL_DRIVER _IOW('q', 102, struct calc_args)
+#define QDMA_CDEV_IOCTL_ADDER _IOW('q', 103, struct calc_args)
+#define QDMA_CDEV_IOCTL_DMA _IOW('q', 104, struct calc_args)
 
 
 /* per pci device control */

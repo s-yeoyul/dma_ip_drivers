@@ -87,11 +87,23 @@ static void my_user_isr(unsigned long dev_hndl, unsigned long uld)
 {
 	    static unsigned long cnt;
 		struct my_isr_outer *outer;
-		
 		cnt++;
-		pr_info("USER IRQ fired! dev=%p cnt=%lu\n", (void *)dev_hndl, cnt);
+		
+		pr_info("MY USER IRQ fired! dev=%p cnt=%lu\n", (void *)dev_hndl, cnt);
+
 		outer = (struct my_isr_outer *)uld;
-		pr_info("qdma_driver_interrupt: result %d\n", *(u32 *)outer->ctx->v_dma_addr);
+		if(!outer) {
+			pr_info("my_isr_outer is NULL\n");
+			return ;
+		}
+
+		if(outer->ctx) {
+			if(outer->ctx->v_dma_addr) {
+				printk(KERN_INFO "qdma_driver_interrupt: result = %d\n", *(u32 *)outer->ctx->v_dma_addr);
+			}
+			else pr_err("outer->ctx->v_dma_addr is NULL\n");
+		}
+		// if(&outer->irq_comp) complete(&outer->irq_comp);
 }
 #else
 static void my_user_isr(unsigned long dev_hndl, int irq_index, unsigned long uld)
@@ -1609,10 +1621,14 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	conf.msix_qvec_max = 32;
 	conf.user_msix_qvec_max = 1;
 	
-	isr_outer = kzalloc(sizeof(*xpdev->isr_outer), GFP_KERNEL);
+	isr_outer = kzalloc(sizeof(*isr_outer), GFP_KERNEL);
+	if(!isr_outer){
+		rv = -ENOMEM;
+		goto close_device;
+	}
 	// Set user interrupt handler
 	conf.fp_user_isr_handler = my_user_isr;
-	conf.uld = (unsigned long)(uintptr_t)xpdev->isr_outer;
+	conf.uld = (unsigned long)(uintptr_t)isr_outer;
 
 	// Set user interrupt handler
 	// conf.fp_user_isr_handler = my_user_isr;
@@ -1695,6 +1711,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	*/
 	// 4. Interrupt handlin
 	xpdev->isr_outer = isr_outer;
+	init_completion(&xpdev->isr_outer->irq_comp);
 
 	xpdev->dev_hndl = dev_hndl;
 	xpdev->idx = conf.bdf;

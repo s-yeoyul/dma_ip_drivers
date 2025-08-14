@@ -28,6 +28,7 @@
 #include <linux/pci.h>
 #include <linux/workqueue.h>
 #include <net/genetlink.h>
+#include <linux/completion.h>
 
 #include "libqdma/libqdma_export.h"
 #include "cdev.h"
@@ -58,6 +59,7 @@ struct my_isr_ctx {
 
 struct my_isr_outer {
 	struct my_isr_ctx *ctx;
+	struct completion irq_comp;
 };
 
 /**
