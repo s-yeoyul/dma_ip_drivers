@@ -219,12 +219,14 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 		return 0;
 	/* Problem 1 : Build user application */	
 	case QDMA_CDEV_IOCTL_USER:
+		printk(KERN_INFO "qdma_driver: Handling IOCTL for Problem 1.\n");
 		if(copy_from_user(&args, (void __user *)arg, sizeof(args)))
 			return -EFAULT;
 		printk(KERN_INFO "qdma_driver: %d %d\n", args.arg1, args.arg2);
 		return 0;
 	/* Problem 2 : Build a device driver */
 	case QDMA_CDEV_IOCTL_DRIVER:
+		printk(KERN_INFO "qdma_driver: Handling IOCTL for Problem 2.\n");
 		if(copy_from_user(&args, (void __user *)arg, sizeof(args)))
 			return -EFAULT;
 		bar2_addr = pci_iomap(xcdev->xcb->xpdev->pdev, 2, 100);
@@ -237,16 +239,19 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 		return 0;
 	/* Problem 3 : Design a calculator engine */
 	case QDMA_CDEV_IOCTL_ADDER:
+		printk(KERN_INFO "qdma_driver: Handling IOCTL for Problem 3.\n");
 		if(copy_from_user(&args, (void __user *)arg, sizeof(args)))
 			return -EFAULT;
 		bar2_addr = pci_iomap(xcdev->xcb->xpdev->pdev, 2, 100);
 		iowrite32(args.arg1, bar2_addr + 0x0);
 		iowrite32(args.arg2, bar2_addr + 0x4);
+		printk(KERN_INFO "qdma_driver: write %d %d\n", args.arg1, args.arg2);
 		read_sum = ioread32(bar2_addr + 0x8);
-		printk(KERN_INFO "qdma_driver : read %d\n", read_sum);
+		printk(KERN_INFO "qdma_driver: read %d\n", read_sum);
 		return 0;
 	/* Problem 4 : Send result to device driver */
 	case QDMA_CDEV_IOCTL_DMA:
+		printk(KERN_INFO "qdma_driver: Handling IOCTL for Problem 4.\n");
 		if(copy_from_user(&args, (void __user *)arg, sizeof(args)))
 			return -EFAULT;
 		ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
@@ -257,13 +262,13 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 		// 1. Memory-map the BAR 2 region on host DRAM
 		bar2_addr = pci_iomap(xcdev->xcb->xpdev->pdev, 2, 100);
 		// 2. Write two arguments
-		iowrite32(args.arg1, bar2_addr + 0x0);
-		iowrite32(args.arg2, bar2_addr + 0x4);
-		printk(KERN_INFO "qdma_driver: write %d %d\n", args.arg1, args.arg2);
+		//iowrite32(args.arg1, bar2_addr + 0x0);
+		//iowrite32(args.arg2, bar2_addr + 0x4);
+		//printk(KERN_INFO "qdma_driver: write %d %d\n", args.arg1, args.arg2);
 		
 		// 3. DMA transaction
-		printk(KERN_INFO "qdma_driver: wait...\n");
-		msleep(2000);
+		//printk(KERN_INFO "qdma_driver: wait...\n");
+		//msleep(2000);
 		{
 			void *v_dma_addr; // virtual address of dma base addr
 			dma_addr_t p_dma_addr; // physical address of dma, retrieved by `dma_alloc_coherent`
@@ -297,18 +302,25 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 			req.timeout_ms = 3000;
 			req.fp_done = NULL;
 
-			rc = xcdev->fp_rw(xcdev->xcb->xpdev->dev_hndl, xcdev->c2h_qhndl, &req); // call qdma_request_submit()
+			iowrite32(args.arg1, bar2_addr + 0x0);
+			iowrite32(args.arg2, bar2_addr + 0x4);
+			printk(KERN_INFO "qdma_driver: write %d %d\n", args.arg1, args.arg2);
 			
+			rc = xcdev->fp_rw(xcdev->xcb->xpdev->dev_hndl, xcdev->c2h_qhndl, &req); // call qdma_request_submit()
+			printk(KERN_INFO "qdma_driver: wait...\n");
+			msleep(2000);
+	
 			if (rc < 0) {
 				pr_err("qdma C2H MM failed: %d\n", rc);
 				return rc;
 			}
 
-			pr_info("qdma_driver: *mem = %u (VA=%pK dma=%pad)\n", *(u32 *)v_dma_addr, v_dma_addr, &p_dma_addr);
+			printk(KERN_INFO "qdma_driver: *mem = %u (VA=%pK dma=%pad)\n", *(u32 *)v_dma_addr, v_dma_addr, &p_dma_addr);
 		}
 		return 0;
 	/* Problem 5 : Send interrupt to device driver */
 	case QDMA_CDEV_IOCTL_CALC:
+		printk(KERN_INFO "qdma_driver: Handling IOCTL for Problem 5.\n");
 		// do calculation
 		ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 		if(!ctx) {
