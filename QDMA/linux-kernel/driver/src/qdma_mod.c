@@ -86,8 +86,12 @@ void qdma_flr_resource_free(unsigned long dev_hndl);
 static void my_user_isr(unsigned long dev_hndl, unsigned long uld)
 {
 	    static unsigned long cnt;
+		struct my_isr_outer *outer;
+		
 		cnt++;
 		pr_info("USER IRQ fired! dev=%p cnt=%lu\n", (void *)dev_hndl, cnt);
+		outer = (struct my_isr_outer *)uld;
+		pr_info("qdma_driver_interrupt: result %d\n", *(u32 *)outer->ctx->v_dma_addr);
 }
 #else
 static void my_user_isr(unsigned long dev_hndl, int irq_index, unsigned long uld)
@@ -1563,6 +1567,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct xlnx_pci_dev *xpdev = NULL;
 	unsigned long dev_hndl;
 	int rv;
+	struct my_isr_outer *isr_outer = NULL;	
 #ifdef __x86_64__
 	pr_info("%s: func 0x%x, p/v %d/%d,0x%p.\n",
 		dev_name(&pdev->dev), PCI_FUNC(pdev->devfn),
@@ -1603,10 +1608,15 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	conf.qsets_base = -1;
 	conf.msix_qvec_max = 32;
 	conf.user_msix_qvec_max = 1;
-
+	
+	isr_outer = kzalloc(sizeof(*xpdev->isr_outer), GFP_KERNEL);
 	// Set user interrupt handler
 	conf.fp_user_isr_handler = my_user_isr;
-	// ...
+	conf.uld = (unsigned long)(uintptr_t)xpdev->isr_outer;
+
+	// Set user interrupt handler
+	// conf.fp_user_isr_handler = my_user_isr;
+	// conf.uld = (unsigned long)(uintptr_t)isr_ctx;
 #ifdef __QDMA_VF__
 	conf.fp_flr_free_resource = qdma_flr_resource_free;
 #endif
@@ -1637,13 +1647,54 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		rv = -EIO;
 		goto close_device;
 	}
+	// xpdev->uld = conf.uld;
 	else {
 		pr_info("BAR2 mapped at virtual address 0x%p\n", xpdev->bar2_addr);
 	}
 	// 3. Do dmap_alloc
-	// 4. Interrupt handling
-	
+	/*{
+		void *v_dma_addr; // virtual address of dma base addr
+		dma_addr_t p_dma_addr; // physical address of dma, retrieved by `dma_alloc_coherent`
+		struct qdma_sw_sg sg = {0}; 
+		struct qdma_request req;
+		int rc;
 
+		v_dma_addr = dma_alloc_coherent(&xcdev->xcb->xpdev->pdev->dev, 4, &p_dma_addr, GFP_KERNEL);
+
+		if(!v_dma_addr) {
+			pr_err("dma_alloc_coherent failed\n");
+			return -ENOMEM;
+		}
+		memset(&req, 0, sizeof(req));
+		
+		// qdma scatter gather request, @libqdma_export.h
+		sg.next = NULL;
+		sg.pg = NULL;
+		sg.offset = 0;
+		sg.len = 4;
+		sg.dma_addr = p_dma_addr;
+		
+		// qdma request for read or write, @libqdma_export.h
+		req.write = 0; // C2H
+		req.sgcnt = 1;
+		req.sgl = &sg;
+		req.dma_mapped = 1;
+		req.udd_len = 0;
+		eq.ep_addr = 0x8; // AXI offset: 0x8
+		req.count = 4;
+		req.timeout_ms = 3000;
+		req.fp_done = NULL;
+
+		rc = xcdev->fp_rw(xcdev->xcb->xpdev->dev_hndl, xcdev->c2h_qhndl, &req); // call qdma_request_submit()
+		
+		if (rc < 0) {
+			pr_err("qdma C2H MM failed: %d\n", rc);
+			return rc;
+		}
+	}
+	*/
+	// 4. Interrupt handlin
+	xpdev->isr_outer = isr_outer;
 
 	xpdev->dev_hndl = dev_hndl;
 	xpdev->idx = conf.bdf;

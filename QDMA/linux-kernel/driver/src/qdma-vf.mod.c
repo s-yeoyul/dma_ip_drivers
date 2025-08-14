@@ -34,7 +34,6 @@ __used __section("__versions") = {
 	{ 0x696f0c3, "kmalloc_caches" },
 	{ 0xeb233a45, "__kmalloc" },
 	{ 0xd90cd7e6, "cdev_init" },
-	{ 0xf9a482f9, "msleep" },
 	{ 0xa1eba228, "put_devmap_managed_page" },
 	{ 0xfb941a71, "genl_register_family" },
 	{ 0xa6f09f89, "debugfs_create_dir" },
@@ -340,4 +339,4 @@ MODULE_ALIAS("pci:v000010EEd0000C148sv*sd*bc*sc*i*");
 MODULE_ALIAS("pci:v000010EEd0000C248sv*sd*bc*sc*i*");
 MODULE_ALIAS("pci:v000010EEd0000C348sv*sd*bc*sc*i*");
 
-MODULE_INFO(srcversion, "C01E2C46EF0748B2E0F1019");
+MODULE_INFO(srcversion, "C2CC4E9CFCE46B5630AE5C7");

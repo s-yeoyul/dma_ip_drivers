@@ -49,6 +49,17 @@ enum qdma_drv_mod_param_type {
 	MASTER_PF,
 };
 
+// My own struct for interrupt handling
+struct my_isr_ctx {
+	void *v_dma_addr;
+	dma_addr_t p_dma_addr;
+	size_t len;
+};
+
+struct my_isr_outer {
+	struct my_isr_ctx *ctx;
+};
+
 /**
  * @struct - xlnx_qdata
  * @brief	queue data variables send while read/write request
@@ -94,6 +105,9 @@ struct xlnx_pci_dev {
 	void __iomem *bypass_bar_regs;  /**< PCIe AXI Bridge Master bar*/
 	struct xlnx_qdata *qdata;	/**< queue data*/
 	void __iomem *bar2_addr; /**< PCIe BAR2 addr*/
+	void *v_dma_addr; /**< Virtual Address mapped for DMA*/
+	dma_addr_t p_dma_addr; /**< Device Address mapped for DMA*/
+	struct my_isr_outer *isr_outer;
 };
 
 /*****************************************************************************/

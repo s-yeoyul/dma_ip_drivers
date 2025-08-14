@@ -216,6 +216,8 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 	case QDMA_CDEV_IOCTL_CALC:
 		// do calculation
 		struct calc_args args;
+		struct my_isr_ctx *ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+
 		if(copy_from_user(&args, (void __user *)arg, sizeof(args)))
 			return -EFAULT;
 		printk(KERN_INFO "qdma_driver: %d %d\n", args.arg1, args.arg2);
@@ -238,9 +240,8 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 		printk(KERN_INFO "qdma_driver: read %d\n", read_sum);
 		
 		// 4. DMA transaction
-		printk(KERN_INFO "qdma_driver: wait...\n");
-		msleep(2000);
-
+		// printk(KERN_INFO "qdma_driver: wait...\n");
+		// msleep(2000);
 		{
 			void *v_dma_addr; // virtual address of dma base addr
 			dma_addr_t p_dma_addr; // physical address of dma, retrieved by `dma_alloc_coherent`
@@ -256,6 +257,14 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 			}
 			memset(&req, 0, sizeof(req));
 			
+			// save to xlnx_pci_dev xpdev               		
+			// xcdev->xcb->xpdev->v_dma_addr = v_dma_addr;
+			// xcdev->xcb->xpdev->p_dma_addr = p_dma_addr;
+			// xcdev->xcb->xpdev->uld->v_dma_addr = v_dma_addr;
+			// xcdev->xcb->xpdev->uld->p_dma_addr = p_dma_addr;
+			ctx->v_dma_addr = v_dma_addr;
+			ctx->p_dma_addr = p_dma_addr;
+			xcdev->xcb->xpdev->isr_outer->ctx = ctx;
 			// qdma scatter gather request, @libqdma_export.h
 			sg.next = NULL;
 			sg.pg = NULL;
@@ -280,7 +289,6 @@ static long cdev_gen_ioctl(struct file *file, unsigned int cmd,
 				pr_err("qdma C2H MM failed: %d\n", rc);
 				return rc;
 			}
-
 			pr_info("qdma_driver: *mem = %u (VA=%pK dma=%pad)\n", *(u32 *)v_dma_addr, v_dma_addr, &p_dma_addr);
 		}
 		return 0;
